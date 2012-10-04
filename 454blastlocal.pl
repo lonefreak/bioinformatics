@@ -8,7 +8,6 @@
 #  LAST MODIFIED: 22.05.2012
 #                               
 
-
 #!usr/bin/perl -w
 
 use Bio::Perl;
@@ -20,38 +19,43 @@ use Getopt::Std;
 use warnings;
 use strict;
 
-
-### Declare and initialize variables
-
-my $input_seq = my $threads = my $project_name = my $prog = '';
-my $db = my $eval = my $id = my $len = '';
-
+### Declare and initialize empty variables
+my $input_seq = my $threads = my $db = '';
 my $aln_length = my $perc_id = my $perc_len = 0;
-my $l = my $n_seq = my $blast_done = my $n_seq_tot = 0;
-
+my $n_seq = my $blast_done = my $n_seq_tot = 0;
 my $seq_wo_hit = my $disc_hit = my $aligned_seqs = 0;
-
-my $filt = 'F'; #F -> off, T -> on
-
 my @no_hits_found  = ();
-
 my %opts = my %hit_list = ();
 
-# regex for recovering gene name in the gene description
+### Declaring and initializing default variables
+my $project_name = "local-p";
+my $blast_program = "blastn";
+my $filter = 'F'; #F -> off, T -> on
+my $evalue = 1e-4;
+my $identiity = 70;
+my $min_length = 50;
 
+my %blast_options(
+	threads => "",
+	input_fasta => "",
+	database => "",
+	project_name => "local-p",
+	blast_program => "blastn",
+	evalue => 1e-4,
+	min_identity => 70,
+	min_length => 50
+);
+
+# regex for recovering gene name in the gene description
 my $regex1 = "name=(.+?);";
 
 # regex for recovering gene ID in the gene description
-
 my $regex2 = "parent=(.+?);";
 
 # regex for recovering species name in the gene description
-
 my $regex3 = " species=(.+?);";
 
-
 ### Read command line
-
 my ($USAGE) = "\nUSAGE: $0\n".
     	      "\t\t-t Number of threads to use\n".
     	      "\t\t-s Input sequence file - sequences in fasta format\n".
@@ -65,55 +69,31 @@ my ($USAGE) = "\nUSAGE: $0\n".
 getopts('t:s:n:p:d:e:i:l:h', \%opts);
 chomp(%opts);
 
-if ($opts{t}) {
-   $threads = $opts{t};
-   chomp $threads;
+my %accepted_options(
+	t => "threads",
+	s => "input_fasta",
+	d => "database",
+	n => "project_name",
+	p => "blast_program",
+	e => "evalue",
+	i => "min_identity",
+	l => "min_length"
+);
+
+### Setting options to corresponding keys in blast_options
+foreach $key (keys(%opts)) {
+	if($opts{$key}) {
+		$blast_options{$accepted_options{$key}} = $opts{$key};
+		chomp($blast_options{$accepted_options{$key}}); 
+	}
 }
 
-if ($opts{s}) {
-   $input_seq = $opts{s};
-   chomp $input_seq;
+### Checking mandatory options or cry for help!
+if(!$blast_options{input_fasta} || !$$blast_options{database} || $opts{h}) {
+	die $USAGE;
 }
-
-if ($opts{d}) {
-   $db = $opts{d};
-   chomp $db;
-}
-
-if ($opts{n}) {
-   $project_name = $opts{n};
-   chomp $project_name;
-} else { $project_name = "local-p" }
-
-if ($opts{p}) {
-   $prog = $opts{p};
-   chomp $prog;
-} else { $prog = "blastn" }
-
-if ($opts{e}) {
-   $eval = $opts{e};
-   chomp $eval;
-} else { $eval = 1e-4 }
-
-if ($opts{i}) {
-   $id = $opts{i};
-   chomp $id;
-} else { $id = 70 }
-
-if ($opts{l}) {
-   $len = $opts{l};
-   chomp $len;
-} else { $len = 50 }
-
-
-if (!($input_seq) || !($db)  || ($opts{h})) {
-	print $USAGE;
-	exit;
-}
-
 
 ### Create new directory to store new files
-
 mkdir $project_name || die "Could not create folder $project_name\n";
 
 
@@ -144,10 +124,10 @@ printf SUMM "\n%s %s  %02d.%02d.%04d  %02d:%02d:%02d %s\n\n",
 			'=' x 20 .'[', $0, $day, $month+1, $year+1900, $hour, $min, $sec, ']'.'=' x 20;
 print  SUMM	"INPUT FASTA FILE:      $input_seq\n",
 			"DATABASE:        		$db\n".
-			"BLAST PROGRAM NAME:    $prog\n".
-            "E-VALUE THRESHOLD:     $eval\n".
-            "ID THRESHOLD:	        $id\n".
-            "MIN % OF QUERY IN ALN: $len\n\n";
+			"BLAST PROGRAM NAME:    $blast_program\n".
+            "E-VALUE THRESHOLD:     $evalue\n".
+            "ID THRESHOLD:	        $identity\n".
+            "MIN % OF QUERY IN ALN: $min_length\n\n";
 
 print  SUMM	"DISCARDED HITS:\n\n";
 
@@ -166,12 +146,12 @@ my $nmapped_obj = Bio::SeqIO->new(-file => ">$not_mapped", -format => 'fasta');
 ### Blast 
 
 my @blast_params = (
-					program  => $prog,
+					program  => $blast_program,
 					database => $db,
-					e => $eval,
+					e => $evalue,
 					v => 10,
 					b => 10,
-					F => $filt,
+					F => $filter,
 					o => $blast_res,
 					a => $threads, 
 				   );
@@ -210,10 +190,10 @@ while (my $result_obj = $blast_report->next_result) {
 
 	my $bitscore_1st = $hsp_best->bits();
 
-	# Keep only hits with >= $id_threshold identity over at least  
-	# $len_threshold of the read length
+	# Keep only hits with >= $identity_threshold identity over at least  
+	# $min_length_threshold of the read length
 
-	if ($perc_id >= $id && $perc_len >= $len) {
+	if ($perc_id >= $identity && $perc_len >= $min_length) {
 		
 		++$aligned_seqs;
 		
@@ -265,9 +245,9 @@ while (my $result_obj = $blast_report->next_result) {
 		$perc_len = ($aln_length/$result_obj->query_length) * 100;
 		$perc_id  = $hsp_best2->percent_identity;
 				
-		# Keep only hits with >= $id_threshold identity over at least  
-		# $len_threshold of the sequence length
-		if ($perc_id >= $id && $perc_len >= $len) {
+		# Keep only hits with >= $identity_threshold identity over at least  
+		# $min_length_threshold of the sequence length
+		if ($perc_id >= $identity && $perc_len >= $min_length) {
 		
 			$hit_2nd->description =~ /$regex1/;
 			my $gene_name2 = $1;
