@@ -106,7 +106,10 @@ open(LOG, ">/tmp/blop.log") || die "Could not open file /tmp/blop.log.\n";
 # Discarded hits and summary statistics
 open(SUMM, ">$summary") || die "Could not open file $summary.\n";
 
-print TABLE "QUERY\t#HITS\tBEST_HIT\tPARENT\tE-VALUE\tID\tHIT_START\tHIT_END\tGENE_NAME\tSPECIES\t".
+print TABLE "QUERY\t#HITS\tBEST_HIT\tE-VALUE".
+        "\tID\tHIT_START\tHIT_END".
+        "\t2ND_HIT\tE-VALUE\tID\tHIT_START".
+        "\tHIT_END\n";
 
 ### Writting summary file header
 (my $sec, my $min, my $hour, my $day, my $month, my $year) = (localtime)[0..5];
