@@ -13,20 +13,24 @@
 use MongoDB;
 use MongoDB::OID;
 
-my ($USAGE) = "\nUSAGE: $0 <hit table filename> <origin tag>\n".
+my ($USAGE) = "\nUSAGE: $0 <db> <collection> <hit table filename> <origin tag>\n".
+              "\t\t<db> MongoDB database name\n".
+              "\t\t<collection> MongoDB collection to use\n".
               "\t\t<hit table filename> path and filename for the hit table file\n".
               "\t\t<origin tag> string with the database name and/or type which the BLAST was matched against\n";
 
-unless($ARGV[0] && $ARGV[1]) { die $USAGE; } 
+unless($ARGV[0] && $ARGV[1] && $ARGV[2] && $ARGV[3]) { die $USAGE; } 
 
-my $TABLEFILE = $ARGV[0];
-my $ORIGIN = $ARGV[1];
+my $DATABASE = $ARGV[0];
+my $COLLECTION = $ARGV[1];
+my $TABLEFILE = $ARGV[2];
+my $ORIGIN = $ARGV[3];
 
 open(TABLE, "<$TABLEFILE") || die "Could not open file $TABLEFILE.\n";
 
 my $conn = MongoDB::Connection->new;
-my $db = $conn->chomdb;
-my $chom = $db->chom;
+my $db = $conn->$DATABASE;
+my $chom = $db->$COLLECTION;
 
 my @rline;
 while(<TABLE>){
