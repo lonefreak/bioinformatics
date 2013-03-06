@@ -1,17 +1,28 @@
 #!/usr/bin/perl
 
-# get_sequences_from_labels 1.0
+# get_sequences_from_labels 1.1
 # Author: Fabricio Leotti
+# Created at:
+# Updated at: 07/feb/2013
 # Description: Get all the sequences in a fasta file that match labels in a label file.
-# Usage: $ ./get_sequences_from_labels.pl <labels_file> <fasta_file>
-# Return: 'output-lookup.fasta' created on the software folder and '/tmp/output.fasta-lookup.log' containing log information
+# Usage: $ ./get_sequences_from_labels.pl <labels_file> <fasta_file> <output_fasta_file>
+# Return: <output_fasta_file> created on the specified path and '/tmp/output.fasta-lookup.log' containing log information
 
 use strict;
 use warnings;
 use autodie;
 
-open LOG, '>', '/tmp/output.fasta-lookup.log' or die $!;
-open OUT, '>', 'output-lookup.fasta' or die $!;
+my ($USAGE) = "\nUSAGE: $0 <labels_file> <fasta_file> <output_fasta_file>\n";
+
+if (!defined($ARGV[0]) || !defined($ARGV[1]) || !defined($ARGV[2])) {
+        die $USAGE;
+}
+
+my $fasta = $ARGV[0];
+my $label = $ARGV[1];
+
+open(LOG, ">/tmp/output.fasta-lookup.log") or die $!;
+open(OUT, ">$ARGV[2]") or die $!;
 my $total_sequences = 0;
 my $found_sequences = 0;
 my $is_sequence = 0;
