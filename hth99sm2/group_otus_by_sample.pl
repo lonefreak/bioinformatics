@@ -5,7 +5,7 @@ use strict;
 my $caption_sum = 0;
 my $line_sum = 0;
 my $total_lines = 0;
-my $table;
+my $table, my $output;
 my %target_sums;
 my @caption;
 
@@ -14,45 +14,84 @@ my $output_file = shift;
 my $permanent_sample = shift;
 my @combinatory_samples = @ARGV;
 
-open($table , "<$otu_table" ) || die "Could not open the file $otu_table\n";
+open($table , "<", $otu_table ) || die "Could not open the file $otu_table\n";
+open($output , ">", $output_file ) || die "Could not open the file $output_file\n";
 
+print get_caption($table), "\n";
+print $output get_caption($table), "\n";
 %target_sums = &set_samples_combination($table, $permanent_sample, \@combinatory_samples);
-$total_lines = &process_file($table, $output_file, \%target_sums);
+$total_lines = &process_file($table, $output, \%target_sums);
 print "Total de linhas encontradas: $total_lines\n\n";
 close($table);
 
 sub print_hash {
         my (%hash) = %{$_[0]};
         for my $key (keys(%hash)) {
-                print $key,", ",$hash{$key},"\n";
+                print $key," => ",$hash{$key},"\n";
         }
 }
 
 sub set_samples_combination {
 	#receives: file handler, permanent sample, combinatory sample
 	#returns: hash containing target binary sum for each sample combination
+	my %target_sums;
+	my $caption = "";
+	my ($table, $permanent_sample, $combinatory_samples) = @_;
 	
-	my ($table, $permanent_sample, @combinatory_samples) = (shift, shift, shift);
-	my @combinations = &get_combinations(\@combinatory_samples);
+	$caption = get_caption ($table);
+	if ($caption eq "") { die "Error trying to read the OTU Table caption."; }
+	
+#my $index = 0;
+	my @combinations = &get_combinations(@{$combinatory_samples});
 	for my $combination (@combinations) {
-		print join(" ", $combination, $permanent_sample), "\n";	
+#		print ++$index, ")\n";
+		my %samples = &scalar_to_hash_with_default_value(join(" ", $permanent_sample, @{$combination}), " ", 1);
+#		&print_hash(\%samples);
+		my $target_sum = &process_sample($caption, \%samples);
+#		print $target_sum, "\n\n";
+		$target_sums{$target_sum} = 1;
 	}
-	exit;
+	
+#	print "################################\n";
+#	&print_hash(\%target_sums);
+#	print "################################\n";
+	return %target_sums;
+}
+
+sub scalar_to_hash_with_default_value {
+	my ($string, $separator, $default) = @_;
+	my @elements = split($separator, $string);
+	my %hash;
+	for my $item (@elements) {
+		$hash{$item} = $default;
+	}
+	return %hash;
 }
 
 sub get_combinations {
 	use Algorithm::Combinatorics qw(combinations);
-	my @combinatory_samples = shift;
-	return combinations(\@combinatory_samples);	
+	my @combinatory_samples = @_;
+	my @combinations;
+	for(my $i = 1; $i <= $#_ + 1; $i++) {
+		push(@combinations, combinations(\@_, $i));
+	}
+	return @combinations;
 }
 
 sub process_sample {
-	my($caption, %samples) = (shift, shift);
+	my($caption, $s) = @_;
+	my %samples = %{$s};
+#	print "=====================\n";
+#	&print_hash(\%samples);
+#	print "=====================\n";
 	my @capt = split("\t", $caption);
 	my $target_sum = 0;
 	for(my $i = 1; $i <= $#capt; $i++) {
 		if(defined($samples{$capt[$i]})) {
-			$target_sum = 2**$i;
+#			print "********************\n";
+#			print $capt[$i], " -> ", $i, " -> ", 2**$i, "\n";
+#			print "********************\n";
+			$target_sum += 2**$i;
 		}
 	}
 	return $target_sum;
@@ -60,29 +99,50 @@ sub process_sample {
 
 sub process_line {
 	my @line = split("\t", $_[0]);
+	my %target_sums = %{$_[1]};
 	for(my $i = 1; $i < $#line; $i++) {
 		if($line[$i] + 0.0 > 0) {
 			$line_sum += 2**$i;
 		}
 	}
+	if(defined($target_sums{$line_sum})) {
+		return $_[0];
+	} else {
+		return "";
+	}
 }
 
 sub process_file {
-	my ($table, $output_file, %target_sums) = (shift, shift, shift);
+	my ($table, $output_file, $target) = @_;
+	my %target_sums = %{$target};
 	my $processed_line;
+	seek($table,0,0);
 	while (<$table>) {
 		chomp;
 		if ( $_ =~ m/^\#/ ) {
 			next;
 		}
-		else {
-			$processed_line = &process_line($_);
-			if ( $processed_line ) {
-				print $output_file $processed_line, "\n";
-				$total_lines++;
-			}
-			$line_sum = 0;
+		$processed_line = &process_line($_, \%target_sums);
+		if ( $processed_line ) {
+			print $processed_line, "\n";
+			print $output_file $processed_line, "\n";
+			$total_lines++;
 		}
+		$line_sum = 0;
 	}
 	return $total_lines;
+}
+
+sub get_caption {
+	my ($table) = @_;
+	my $caption = "";
+	seek($table,0,0);
+	while (<$table>) {
+		chomp;
+		if ( $_ =~ m/^\#OTU/ ) {
+			$caption = $_;
+			last;
+		}
+	}
+	return $caption;
 }
