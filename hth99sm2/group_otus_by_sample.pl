@@ -1,22 +1,25 @@
 #! /usr/bin/perl
 
 use strict;
-use Algorithm::Combinatorics qw(combinations);
 
-my $otu_table = shift;
 my $caption_sum = 0;
 my $line_sum = 0;
 my $total_lines = 0;
-my %samples;
+my $table;
+my %target_sums;
 my @caption;
 
-foreach my $arg (@ARGV) {
-	$samples{$arg} = 1;
-}
+my $otu_table = shift;
+my $output_file = shift;
+my $permanent_sample = shift;
+my @combinatory_samples = @ARGV;
 
-$total_lines = &process_file ($line_sum, $total_lines, $caption_sum, $otu_table);
-&print_hash(\%samples);
+open($table , "<$otu_table" ) || die "Could not open the file $otu_table\n";
+
+%target_sums = &set_samples_combination($table, $permanent_sample, \@combinatory_samples);
+$total_lines = &process_file($table, $output_file, \%target_sums);
 print "Total de linhas encontradas: $total_lines\n\n";
+close($table);
 
 sub print_hash {
         my (%hash) = %{$_[0]};
@@ -25,55 +28,61 @@ sub print_hash {
         }
 }
 
-sub process_caption {
-	@caption = split("\t", $_[0]);
-	for(my $i = 1; $i <= $#caption; $i++) {
-		if(defined($samples{$caption[$i]})) {
-			$samples{$caption[$i]} = 2**$i;
-			$caption_sum += 2**$i;
-			print "################################";
-		}
-		print $caption[$i], " => ", $i, "\n";
+sub set_samples_combination {
+	#receives: file handler, permanent sample, combinatory sample
+	#returns: hash containing target binary sum for each sample combination
+	
+	my ($table, $permanent_sample, @combinatory_samples) = (shift, shift, shift);
+	my @combinations = &get_combinations(\@combinatory_samples);
+	for my $combination (@combinations) {
+		print join(" ", $combination, $permanent_sample), "\n";	
 	}
+	exit;
+}
+
+sub get_combinations {
+	use Algorithm::Combinatorics qw(combinations);
+	my @combinatory_samples = shift;
+	return combinations(\@combinatory_samples);	
+}
+
+sub process_sample {
+	my($caption, %samples) = (shift, shift);
+	my @capt = split("\t", $caption);
+	my $target_sum = 0;
+	for(my $i = 1; $i <= $#capt; $i++) {
+		if(defined($samples{$capt[$i]})) {
+			$target_sum = 2**$i;
+		}
+	}
+	return $target_sum;
 }
 
 sub process_line {
 	my @line = split("\t", $_[0]);
 	for(my $i = 1; $i < $#line; $i++) {
 		if($line[$i] + 0.0 > 0) {
-			#print $caption[$i],"\n";
-			#print $line[$i], " + 0.0 = ", ($line[$i] + 0.0), "\n"; 
 			$line_sum += 2**$i;
 		}
-		#print "LINESUM: ",$line_sum,"\n";
 	}
 }
 
 sub process_file {
-	my ($line_sum, $total_lines, $caption_sum, $otu_table) = (shift, shift, shift, shift);
-
-	open( TABLE, "<$otu_table" ) || die "Could not open the file $otu_table\n";
-	<TABLE>;
-	while (<TABLE>) {
+	my ($table, $output_file, %target_sums) = (shift, shift, shift);
+	my $processed_line;
+	while (<$table>) {
 		chomp;
-		if ( $_ =~ m/^\#OTU/ ) {
-			&process_caption($_);    #proccess caption
-			print "Procurando por somas iguais a $caption_sum\n\n";
-			print $_, "\n";
-		}
-		elsif ( $_ =~ m/^\#/ ) {
-			next;                    #discard this line
+		if ( $_ =~ m/^\#/ ) {
+			next;
 		}
 		else {
-			&process_line($_);
-			if ( $caption_sum == $line_sum ) {
-
-				#print $_, "\n";
+			$processed_line = &process_line($_);
+			if ( $processed_line ) {
+				print $output_file $processed_line, "\n";
 				$total_lines++;
 			}
 			$line_sum = 0;
 		}
 	}
-	close(TABLE);
 	return $total_lines;
 }
