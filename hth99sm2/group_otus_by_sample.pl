@@ -4,42 +4,18 @@ use strict;
 use Algorithm::Combinatorics qw(combinations);
 
 my $otu_table = shift;
-my %samples;
 my $caption_sum = 0;
 my $line_sum = 0;
 my $total_lines = 0;
+my %samples;
 my @caption;
 
 foreach my $arg (@ARGV) {
 	$samples{$arg} = 1;
 }
-#&print_hash(\%samples);
 
-open(TABLE,"<$otu_table") || die "Could not open the file $otu_table\n";
-<TABLE>;
-while(<TABLE>) {
-	chomp;
-	if($_ =~ m/^\#OTU/) {
-		&process_caption($_); #proccess caption
-		print "Procurando por somas iguais a $caption_sum\n\n";
-		print $_, "\n";
-	} elsif($_ =~ m/^\#/) {
-		next; #discard this line
-	} else{
-		&process_line($_);
-		if($caption_sum == $line_sum) {
-			#print $_, "\n";
-			$total_lines++;
-		}
-		$line_sum = 0;
-	}
-}
-close(TABLE);
-
+$total_lines = &process_file ($line_sum, $total_lines, $caption_sum, $otu_table);
 &print_hash(\%samples);
-
-#print "Procurando por somas iguais a $caption_sum\n\n";
-
 print "Total de linhas encontradas: $total_lines\n\n";
 
 sub print_hash {
@@ -71,4 +47,33 @@ sub process_line {
 		}
 		#print "LINESUM: ",$line_sum,"\n";
 	}
+}
+
+sub process_file {
+	my ($line_sum, $total_lines, $caption_sum, $otu_table) = (shift, shift, shift, shift);
+
+	open( TABLE, "<$otu_table" ) || die "Could not open the file $otu_table\n";
+	<TABLE>;
+	while (<TABLE>) {
+		chomp;
+		if ( $_ =~ m/^\#OTU/ ) {
+			&process_caption($_);    #proccess caption
+			print "Procurando por somas iguais a $caption_sum\n\n";
+			print $_, "\n";
+		}
+		elsif ( $_ =~ m/^\#/ ) {
+			next;                    #discard this line
+		}
+		else {
+			&process_line($_);
+			if ( $caption_sum == $line_sum ) {
+
+				#print $_, "\n";
+				$total_lines++;
+			}
+			$line_sum = 0;
+		}
+	}
+	close(TABLE);
+	return $total_lines;
 }
