@@ -34,27 +34,31 @@ sub print_hash {
 sub set_samples_combination {
 	#receives: file handler, permanent sample, combinatory sample
 	#returns: hash containing target binary sum for each sample combination
-	my %target_sums;
+	my %target_sums, my %samples;
+	my $target_sum = 0;
 	my $caption = "";
 	my ($table, $permanent_sample, $combinatory_samples) = @_;
 	
 	$caption = get_caption ($table);
 	if ($caption eq "") { die "Error trying to read the OTU Table caption."; }
 	
-#my $index = 0;
-	my @combinations = &get_combinations(@{$combinatory_samples});
-	for my $combination (@combinations) {
-#		print ++$index, ")\n";
-		my %samples = &scalar_to_hash_with_default_value(join(" ", $permanent_sample, @{$combination}), " ", 1);
-#		&print_hash(\%samples);
-		my $target_sum = &process_sample($caption, \%samples);
-#		print $target_sum, "\n\n";
+	if(!@{$combinatory_samples}) {
+		%samples = &scalar_to_hash_with_default_value(join(" ", $permanent_sample), " ", 1);
+		$target_sum = &process_sample($caption, \%samples);
 		$target_sums{$target_sum} = 1;
+	} else {
+		my @combinations = &get_combinations(@{$combinatory_samples});
+		for my $combination (@combinations) {
+			%samples = &scalar_to_hash_with_default_value(join(" ", $permanent_sample, @{$combination}), " ", 1);
+			$target_sum = &process_sample($caption, \%samples);
+			$target_sums{$target_sum} = 1;
+		}
 	}
 	
 #	print "################################\n";
 #	&print_hash(\%target_sums);
 #	print "################################\n";
+#	exit;
 	return %target_sums;
 }
 
@@ -81,10 +85,11 @@ sub get_combinations {
 sub process_sample {
 	my($caption, $s) = @_;
 	my %samples = %{$s};
-#	print "=====================\n";
 #	&print_hash(\%samples);
-#	print "=====================\n";
 	my @capt = split("\t", $caption);
+#	print "=====================\n";
+#	print @capt, "\n";
+# 	print "=====================\n";
 	my $target_sum = 0;
 	for(my $i = 1; $i <= $#capt; $i++) {
 		if(defined($samples{$capt[$i]})) {
@@ -100,7 +105,7 @@ sub process_sample {
 sub process_line {
 	my @line = split("\t", $_[0]);
 	my %target_sums = %{$_[1]};
-	for(my $i = 1; $i < $#line; $i++) {
+	for(my $i = 1; $i <= $#line; $i++) {
 		if($line[$i] + 0.0 > 0) {
 			$line_sum += 2**$i;
 		}
