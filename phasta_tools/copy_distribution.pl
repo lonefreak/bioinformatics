@@ -45,9 +45,9 @@ sub print_hash {
 }
 
 sub write_output {
-	my ($seq, $output) = @_;
+	my ($seq, $index, $output) = @_;
 	open(my $result, ">>$output") || die "cannot open label file $output\n";
-    print $result ">",length($seq),"\n",$seq,"\n";
+    print $result ">modified sequence ",$index,"\n",$seq,"\n";
 	close($result);
 }
 
@@ -58,11 +58,12 @@ sub copy_distribution {
 	my $element = "";
 	my %copied_distribution;
 	my @lengths = ();
+	my $index = -1;
 	foreach my $length (keys(%hash)) {
 		for(my $i=0; $i < $hash{$length}; $i++) {
-			($element, @array) = &get_random_element_of_length($length, \@array);
+			($element, $index, @array) = &get_random_element_of_length($length, \@array);
 			if($element) {
-				&write_output($element, $output);
+				&write_output($element, $index, $output);
 				push(@lengths, $element);
 			}
 		}
@@ -75,20 +76,22 @@ sub get_random_element_of_length {
 	my $length = $_[0];
 	my @array = @{$_[1]};
 	my $element = "";
+	my $index = -1;
 	do {
-		($element, @array) = &get_random_element(\@array);
+		($element, $index, @array) = &get_random_element(\@array);
 		if(length($element) >= $length) {
 			$element = substr($element, 0, $length);
 		}
 	} while(length($element) < $length && @array > 0);
 	if(@array == 0) { die "Unable to copy the distribution!!"; }
-	return ($element, @array);
+	return ($element, $index, @array);
 }
 
 sub get_random_element {
 	my @array = @{$_[0]};
-	my $element = splice(@array,rand(@array),1);
-	return ($element, @array);
+	my $index = int(rand(@array));
+	my $element = splice(@array,$index,1);
+	return ($element, $index, @array);
 }
 
 sub to_array {
