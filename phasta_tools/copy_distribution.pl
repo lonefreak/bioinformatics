@@ -8,8 +8,7 @@
 # Usage: $ ./copy_distribution.pl <copy_from fasta file> <copy_to fasta file> <result fasta file>
 
 use strict;
-use MongoDB;
-use MongoDB::OID;
+use Mysql;
 
 my ($USAGE) = "\nUSAGE: $0 <copy_to fasta file> [<copy_to fasta file> [<copy_to fasta file> [...]]] <copy_from fasta file> <result fasta file>\n";
 
@@ -24,23 +23,19 @@ my $total_samples = @ARGV;
 my $len = 0;
 print "Starting process (",&current_time,")\n";
 
-my $DATABASE = "distribution";
-my $COLLECTION = "dmel";
-my $conn = MongoDB::Connection->new;
-my $db = $conn->$DATABASE;
-my $dmel = $db->$COLLECTION;
-
-$dmel->drop();
+my $connect = &connect;
+my $table = "dmel";
+&truncate($table);
 
 while(@ARGV>0) {
 	$len = @ARGV;
 	print "Including sample file ",$total_samples-$len+1," of ",$total_samples," (",&current_time,")\n";
-	&add_to_collection($dmel, shift);
+	&add_to_collection($table, shift);
 	print "Creating index (",&current_time,")\n";
-	$dmel->ensure_index({'length' => 1});
+	#$dmel->ensure_index({'length' => 1});
 }
 
-$len = $dmel->count();
+$len = &count($table);
 print "Total samples included: ", $len," (",&current_time,")\n";
 
 print "####################################################\n";
@@ -52,7 +47,7 @@ print "Distribution:\n";
 
 print "####################################################\n";
 print "Starting distribution copy. (",&current_time,")\n";
-my %copied_distribution = &copy_distribution(\%distribution, $dmel, $result);
+my %copied_distribution = &copy_distribution(\%distribution, $table, $result);
 print "\n\nCopied Distribution:\n";
 &print_hash(\%copied_distribution);
 print "####################################################\n";
@@ -90,7 +85,7 @@ sub copy_distribution {
 	my @lengths = ();
 	my $index = -1;
 	foreach my $length (keys(%hash)) {
-		@array = &build_sequence_array($length,$dmel);
+		@array = &build_sequence_array($length,$table);
 		print "Looking for $hash{$length} elements with length of $length. (",&current_time,")\n";
 		for(my $i=0; $i < $hash{$length}; $i++) {
 			print "\tElement ", $i+1 ,". (",&current_time,")\n";
@@ -113,7 +108,7 @@ sub build_sequence_array {
 	my $coll = $_[1];
 	my @sequence_array = ();
 
-	my $seqs = $db->get_collection( 'dmel' )->find({'length' => {'$gte'=> $min_length}});
+	#my $seqs = $db->get_collection( 'dmel' )->find({'length' => {'$gte'=> $min_length}});
 	my @a = $seqs->all;
 	foreach my $seq (@a) {
 		my %s = %{$seq};
@@ -241,4 +236,28 @@ sub add_trailing_zero {
 		return "0$_[0]";
 	}
 	return $_[0];
+}
+
+sub connect {
+	# CONFIG VARIABLES
+	my $host = "localhost";
+	my $database = "distribution";
+	my $tablename = "dmel";
+	my $user = "";
+	my $pw = "";
+	my $connect = Mysql->connect($host, $database, $user, $pw);
+	return $connect;
+}
+
+sub truncate {
+	my $table = $_[0]; 
+	my $query = "truncate table $table";
+	my $execute = $connect->query($query);
+}
+
+sub count {
+	my $table = $_[0];
+	my $query = "select count(1) from $table";
+	my $execute = $connect->query($query);
+	return $execute->fetchrow_arrayref->[0];
 }
