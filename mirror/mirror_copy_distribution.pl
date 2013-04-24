@@ -5,14 +5,16 @@
 # Author: Fabricio Leotti
 # Created at: 06/abr/2013
 # Updated at: 23/abr/2013
-# Description: Randomly finds and cuts records in a MySQL table to represent the same length distribution as in <copy_from fasta file>
-# Usage: $ ./mirror_copy_distribution.pl <copy_from fasta file> <result fasta file> <database> <table>
+# Description: Randomly finds and cuts records in a MySQL table to represent the same length distribution as in <distribution file>
+# Usage: $ ./mirror_copy_distribution.pl <distribution file> <result fasta file> <database> <table>
 
 use strict;
-use List::Util qw( min max );
 use DBD::mysql;
+use Tie::File;
+use Time::HiRes qw(gettimeofday);
+use Parallel::Loops;
 
-my ($USAGE) = "\nUSAGE: $0 <copy_from fasta file> <result fasta file> <database> <table>\n";
+my ($USAGE) = "\nUSAGE: $0 <distribution file> <result fasta file> <database> <table>\n";
 
 if (!defined($ARGV[0]) || !defined($ARGV[1]) || !defined($ARGV[2]) || !defined($ARGV[3])) {
 	die $USAGE;
@@ -25,8 +27,8 @@ my $copy_from = pop;
 print "Starting process (",&current_time,")\n";
 my $connect = &connect($database);
 print "Starting distribution extraction. (",&current_time,")\n";
-my @lengths = &to_array($copy_from);
-my @seq_array = &copy_distribution(\@lengths, $table);
+my ($min, %lengths) = &to_hash($copy_from);
+my @seq_array = &copy_distribution(\%lengths, $table, $min);
 &print_array_to_file(\@seq_array, $result);
 print "Done distribution copy. (",&current_time,")\n";
 exit;
@@ -64,141 +66,145 @@ sub write_output {
 	close($result);
 }
 
+sub is_defined {
+	my %hash = %{$_[0]};
+	my $len = $_[1];
+	my $min = $_[2];
+	if(defined($hash{$len})) { return 1; }
+	my $inf = int($len - ( 0.2 * $len));
+	my $sup = int($len + ( 0.2 * $len));
+	for(my $i = $inf; $i <= $sup; $i++) {
+		if(defined($hash{$i})) { return 1; }
+	}
+	for(my $i = 0; $i < 10; $i++) {
+		my $n = int(rand($len-$min)) + $min;
+		if(defined($hash{$n})) { return 1; }
+	}
+	return 0;
+}
+
 sub copy_distribution {
-	my @lengths = @{$_[0]};
-	my @array;
-	my $coll = $_[1];
-	my %copied_distribution;
-	my @seqs;
+	my %lengths = %{$_[0]};
+	my $table = $_[1], my $initial_length = scalar(keys(%lengths));
+	my $min = $_[2];
+	my %copied_distribution, my %selected_rows, my %seq_ids;
 
+	my $parallel = 0;
 
-	my $q = @lengths;
-	my $min = min @lengths;
-	my $max = max @lengths;
-	print "Number of sequences in original distribution: ", $q, " (",&current_time,")\n";
-	print "Smaller sequence: ", $min, "pb (",&current_time,")\n";
-	print "Bigger sequence: ", $max, "pb (",&current_time,")\n";
+#	print "Number of sequences in original distribution: ", $#lengths+1, " (",&current_time,")\n";
+#	print "\tSmaller sequence: ", $lengths[0], "pb (",&current_time,")\n";
+#	print "\tBigger sequence: ", $lengths[$#lengths], "pb (",&current_time,")\n";
 	print "Starting copy proccess. (",&current_time,")\n";
 
-	my @elements = &get_random_elements_bigger_than($coll, \@lengths, $min);
-	for my $element (@elements) {
-		push(@seqs, $element);
-		#print "\t",length($element)," (",&current_time,")\n";
-	}
+	do {
+		%selected_rows = &get_random_elements_bigger_than($table, $min);
+	
+		if($parallel) {
+		my $maxProcs = 4;
+		my $parallax = Parallel::Loops->new($maxProcs);
+		$parallax->share(\%copied_distribution);
+		$parallax->share(\%selected_rows);
+		$parallax->share(\%seq_ids);
+		my @keys = keys(%selected_rows);
+		$parallax->foreach(\@keys, sub {
+			my $row = $_;
+			unless(defined($seq_ids{$row})) {
+                                if(defined($lengths{length($selected_rows{$row})})) {
+                                        $lengths{length($selected_rows{$row})}--;
+                                        $copied_distribution{$row} = $selected_rows{$row};
+                                        $seq_ids{$row} = 1;
+                                }
+                        }
+		}
+			
+		);
+
+		} else {
+
+		foreach my $row (keys(%selected_rows)) {
+			
+			unless(defined($seq_ids{$row})) {
+				my $len = length($selected_rows{$row});
+				if(&is_defined(\%lengths, $len)) {
+					$lengths{$len}--;
+					unless($lengths{$len}) {
+						undef($lengths{$len});
+					}
+					$copied_distribution{$row} = $selected_rows{$row};
+					$seq_ids{$row} = 1;
+				}
+			}
+		}
+
+		}
+
+		#&print_hash(\%copied_distribution);	
+		print "Found so far: ",scalar(keys(%copied_distribution)),"\n";
+	#} while (scalar(keys(%copied_distribution)) < $initial_length && @lengths > 0);
+	} while (scalar(keys(%copied_distribution)) < 10000);
 	print "Copy proccess finished. (",&current_time,")\n";
-	return @seqs;
+	return %copied_distribution;
 }
 
 sub get_random_elements_bigger_than {
-	my $coll = $_[0];
-	my @lengths = @{$_[1]};
-	my $t = @lengths;
-	@lengths = sort {$a <=> $b} @lengths;
-	my $min = $_[2];
-	my $element = "";
-	my @elements;
-	my $index = 0;
-	my $limit = 15000;
+	my $table = $_[0];
+	my $min = $_[1];
+	my $limit = 100000;
+	my %seq_hash;
+	my ($seconds, $microseconds) = gettimeofday;
 
-	if($t < 15000) {
-		$limit = $t;
-	}
+	my $query = 'SELECT  *
+			FROM    (
+        		SELECT  @cnt := COUNT(*) + 1,
+                		@lim := '.$limit.'
+        		FROM    '.$table.'
+        		) vars
+		STRAIGHT_JOIN
+        		(
+        		SELECT  d.length, d.seq_id, d.seq,
+                		@lim := @lim - 1
+        		FROM    '.$table.' d
+        		WHERE   (@cnt := @cnt - 1)
+				AND d.length >= '.$min.'
+        		        AND RAND('.$microseconds.') < @lim / @cnt
+        		) i;';
 
-	my $query = "select * from $coll where length >= $min order by RAND() limit $limit";
+	print "Querying... (",&current_time,")\n";
 	print "\t",$query, "\n";
 	my $q = $connect->prepare($query);
 	my $results = $connect->selectall_hashref($query, 'seq_id');
-	foreach my $id (keys %$results) {
-		my $l = pop(@lengths);
-		$element = $results->{$id}->{seq};
-		if(length($element) >= $l) {
-                        $element = substr($element, 0, $l);
-			$index = 0;
-                } else {
-			push(@lengths, $l);
-			$index++;
-		}
-		$t = @lengths;
-		push(@elements,$element);
-		if($index == $t) {
-			last;
-		}
-	}
-	return @elements;
-}
+	print "Query done... ".scalar(keys %$results)." found. (",&current_time,")\n";
 
-sub get_random_element_of_length {
-	my $length = $_[0];
-	my $coll = $_[1];
-	my $how_many = $_[2];
-	my $element = "";
-	my @elements;
-	my $index = 0;
-	my $query = "select * from $coll where length >= $length order by RAND()";
-
-	my $q = $connect->prepare($query);
-	my $results = $connect->selectall_hashref($query, 'seq_id');
 	foreach my $id (keys %$results) {
-		$index++;
-		$element = $results->{$id}->{seq};
-		if(length($element) > $length) {
-                        $element = substr($element, 0, $length);
-                }
-		push(@elements,$element);
-		if($index == $how_many) {
-			last;
-		}
+#		print $results->{$id}->{seq_id},"\n";
+		$seq_hash{$results->{$id}->{seq_id}} = $results->{$id}->{seq};
 	}
-	return @elements;
+	return %seq_hash;
 }
 
 sub to_array {
 	my $filename = $_[0];
-	my $handler;
-	open($handler, "<$filename") || die "cannot open fasta file $filename\n";
-	my @result_array = ();
-	while(<$handler>) {
-		if($_ =~ m/^>/) {
-			my $position = tell();
-			my $newline = <$handler>;
-			my $current_seq = "";
-			while($newline =~ m/^[^>]/) {
-				chomp($newline);
-				$current_seq .= $newline;
-				$newline = <$handler>;
-			}
-			push(@result_array, length($current_seq));
-			unless(seek($handler,$position,0)) {
-				die "A problem has occured during the processing of the FASTA file $filename";
-			}
-		}
-	}
-	close($handler);
-	return @result_array;
+	tie my @array, 'Tie::File', $copy_from or die "cannot open label file $copy_from\n";
+	return @array;
 }
 
-#sub extract_lengths {
-#	my @lengths;
-#	my $fasta = $_[0];
-#	my @seqs = &to_array($fasta);
-#	my $q = @seqs;
-#	my @distribution = &add_lengths(\@seqs);
-#	return ($q, %distribution);
-#}
-
-sub add_lengths {
-	my @seqs = @{$_[0]};
-	my %distribution;
-	my $len = 0;
-	foreach my $seq (@seqs) {
-		$len = length($seq);
-		if(defined($distribution{$len})) {
-			$distribution{$len}++;
+sub to_hash {
+        my $filename = $_[0];
+        my $handler;
+        open($handler, "<$filename") || die "cannot open fasta file $filename\n";
+        my %result_hash;
+	my $inf = 0;
+        while(<$handler>) {
+		chomp;
+		if($inf==0) { $inf = $_; }
+		if(defined($result_hash{$_})) {
+			$result_hash{$_}++;
 		} else {
-			$distribution{$len} = 1;
+			$result_hash{$_} = 1;
 		}
-	}
-	return %distribution;
+        }
+        close($handler);
+        return ($inf, %result_hash);
 }
 
 sub current_time {
