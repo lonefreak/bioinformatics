@@ -3,7 +3,7 @@
 #                                                        
 #  PROGRAM: average_length.pl                                     24.Oct.2012     
 #
-#  DESCRIPTION: Calculates the average size of sequences in a fasta file       
+#  DESCRIPTION: Calculates the average, maximum and minimum size of sequences in a fasta file       
 #
 #  AUTHOR: Fabricio Leotti
 #

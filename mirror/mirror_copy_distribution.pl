@@ -76,7 +76,7 @@ sub copy_distribution {
 	my $min = min @lengths;
 	my $max = max @lengths;
 	print "Number of sequences in original distribution: ", $q, " (",&current_time,")\n";
-	print "Small2er sequence: ", $min, "pb (",&current_time,")\n";
+	print "Smaller sequence: ", $min, "pb (",&current_time,")\n";
 	print "Bigger sequence: ", $max, "pb (",&current_time,")\n";
 	print "Starting copy proccess. (",&current_time,")\n";
 
@@ -105,7 +105,7 @@ sub get_random_elements_bigger_than {
 	}
 
 	my $query = "select * from $coll where length >= $min order by RAND() limit $limit";
-
+	print "\t",$query, "\n";
 	my $q = $connect->prepare($query);
 	my $results = $connect->selectall_hashref($query, 'seq_id');
 	foreach my $id (keys %$results) {
