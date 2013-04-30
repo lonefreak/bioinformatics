@@ -27,7 +27,7 @@ my $copy_from = pop;
 print "Starting process (",&current_time,")\n";
 my $connect = &connect($database);
 print "Starting distribution extraction. (",&current_time,")\n";
-my ($min, %lengths, $total) = &to_hash($copy_from);
+my ($min, $total, %lengths) = &to_hash($copy_from);
 my %seq_hash = &copy_distribution(\%lengths, $table, $min, $total);
 &print_hash_to_file(\%seq_hash, $result);
 print "Done distribution copy. (",&current_time,")\n";
@@ -68,16 +68,17 @@ sub write_output {
 
 sub is_defined {
 	my %hash = %{$_[0]};
+
 	my $len = $_[1];
 	my $min = $_[2];
-	if(defined($hash{$len})) { return 1; }
+	if(defined($hash{$len})) { &print_hash(\%hash); print "tamanho exato: $len\n"; return $len; }
 	my $inf = int($len - ( 0.2 * $len));
 	for(my $i = $inf; $i <= $len; $i++) {
-		if(defined($hash{$i})) { return 1; }
+		if(defined($hash{$i})) { &print_hash(\%hash); print "range de 20%: $i\n"; return $i; }
 	}
 	for(my $i = 0; $i < 10; $i++) {
 		my $n = int(rand($len-$min)) + $min;
-		if(defined($hash{$n})) { return 1; }
+		if(defined($hash{$n})) { &print_hash(\%hash); print "$i-ésimo random: $n\n"; return $n; }
 	}
 	return 0;
 }
@@ -91,60 +92,55 @@ sub copy_distribution {
 
 	my $parallel = 0;
 
-#	print "Number of sequences in original distribution: ", $#lengths+1, " (",&current_time,")\n";
-#	print "\tSmaller sequence: ", $lengths[0], "pb (",&current_time,")\n";
-#	print "\tBigger sequence: ", $lengths[$#lengths], "pb (",&current_time,")\n";
+	print "Number of sequences in original distribution: ", $total, " (",&current_time,")\n";
 	print "Starting copy proccess. (",&current_time,")\n";
 
 	do {
 		%selected_rows = &get_random_elements_bigger_than($table, $min);
 	
 		if($parallel) {
-		my $maxProcs = 4;
-		my $parallax = Parallel::Loops->new($maxProcs);
-		$parallax->share(\%copied_distribution);
-		$parallax->share(\%selected_rows);
-		$parallax->share(\%seq_ids);
-		my @keys = keys(%selected_rows);
-		$parallax->foreach(\@keys, sub {
-			my $row = $_;
-			unless(defined($seq_ids{$row})) {
-                                if(defined($lengths{length($selected_rows{$row})})) {
-                                        $lengths{length($selected_rows{$row})}--;
-                                        $copied_distribution{$row} = $selected_rows{$row};
-                                        $seq_ids{$row} = 1;
-                                }
-                        }
-		}
-			
-		);
-
+			my $maxProcs = 4;
+			my $parallax = Parallel::Loops->new($maxProcs);
+			$parallax->share(\%copied_distribution);
+			$parallax->share(\%selected_rows);
+			$parallax->share(\%seq_ids);
+			my @keys = keys(%selected_rows);
+			$parallax->foreach(\@keys, sub {
+				my $row = $_;
+				unless(defined($seq_ids{$row})) {
+	                                if(defined($lengths{length($selected_rows{$row})})) {
+	                                        $lengths{length($selected_rows{$row})}--;
+	                                        $copied_distribution{$row} = $selected_rows{$row};
+	                                        $seq_ids{$row} = 1;
+	                                }
+	                        }
+			}
+				
+			);
+	
 		} else {
 
-		my $found = scalar(keys(%copied_distribution));
-		foreach my $row (keys(%selected_rows)) {
-			
-			unless(defined($seq_ids{$row})) {
-				my $len = length($selected_rows{$row});
-				if(&is_defined(\%lengths, $len)) {
-					$lengths{$len}--;
-					unless($lengths{$len}) {
-						undef($lengths{$len});
+			my $found = scalar(keys(%copied_distribution));
+			foreach my $row (keys(%selected_rows)) {
+				
+				unless(defined($seq_ids{$row})) {
+					my $len = length($selected_rows{$row});
+					my $cut = 0;
+					if(($cut = &is_defined(\%lengths, $len)) > 0) {
+						$lengths{$cut}--;
+						unless($lengths{$cut}) {
+							undef($lengths{$cut});
+						}
+						$copied_distribution{$row} = substr($selected_rows{$row},0,$cut);
+						$found++;
+						$seq_ids{$row} = 1;
 					}
-					$copied_distribution{$row} = $selected_rows{$row};
-					$found++;
-					$seq_ids{$row} = 1;
 				}
+				if($found>=$total) { last; }
 			}
-			if($found>=$total) { last; }
 		}
-
-		}
-
-		#&print_hash(\%copied_distribution);	
-		print "Found so far: ",scalar(keys(%copied_distribution)),"\n";
-	#} while (scalar(keys(%copied_distribution)) < $initial_length && @lengths > 0);
-	} while (scalar(keys(%copied_distribution)) < 10000);
+		print "Found so far: ",scalar(keys(%copied_distribution))," of $total\n";
+	} while (scalar(keys(%copied_distribution)) < $total);
 	print "Copy proccess finished. (",&current_time,")\n";
 	return %copied_distribution;
 }
@@ -179,7 +175,6 @@ sub get_random_elements_bigger_than {
 	print "Query done... ".scalar(keys %$results)." found. (",&current_time,")\n";
 
 	foreach my $id (keys %$results) {
-#		print $results->{$id}->{seq_id},"\n";
 		$seq_hash{$results->{$id}->{seq_id}} = $results->{$id}->{seq};
 	}
 	return %seq_hash;
@@ -208,7 +203,7 @@ sub to_hash {
 		}
         }
         close($handler);
-        return ($inf, %result_hash, $total);
+        return ($inf, $total, %result_hash);
 }
 
 sub current_time {
