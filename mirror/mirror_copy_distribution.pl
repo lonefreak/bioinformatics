@@ -27,8 +27,8 @@ my $copy_from = pop;
 print "Starting process (",&current_time,")\n";
 my $connect = &connect($database);
 print "Starting distribution extraction. (",&current_time,")\n";
-my ($min, %lengths) = &to_hash($copy_from);
-my %seq_hash = &copy_distribution(\%lengths, $table, $min);
+my ($min, %lengths, $total) = &to_hash($copy_from);
+my %seq_hash = &copy_distribution(\%lengths, $table, $min, $total);
 &print_hash_to_file(\%seq_hash, $result);
 print "Done distribution copy. (",&current_time,")\n";
 exit;
@@ -86,6 +86,7 @@ sub copy_distribution {
 	my %lengths = %{$_[0]};
 	my $table = $_[1], my $initial_length = scalar(keys(%lengths));
 	my $min = $_[2];
+	my $total = $_[3];
 	my %copied_distribution, my %selected_rows, my %seq_ids;
 
 	my $parallel = 0;
@@ -120,6 +121,7 @@ sub copy_distribution {
 
 		} else {
 
+		my $found = scalar(keys(%copied_distribution));
 		foreach my $row (keys(%selected_rows)) {
 			
 			unless(defined($seq_ids{$row})) {
@@ -130,9 +132,11 @@ sub copy_distribution {
 						undef($lengths{$len});
 					}
 					$copied_distribution{$row} = $selected_rows{$row};
+					$found++;
 					$seq_ids{$row} = 1;
 				}
 			}
+			if($found>=$total) { last; }
 		}
 
 		}
@@ -192,9 +196,10 @@ sub to_hash {
         my $handler;
         open($handler, "<$filename") || die "cannot open fasta file $filename\n";
         my %result_hash;
-	my $inf = 0;
+	my $inf = my $total = 0;
         while(<$handler>) {
 		chomp;
+		$total++;
 		if($inf==0) { $inf = $_; }
 		if(defined($result_hash{$_})) {
 			$result_hash{$_}++;
@@ -203,7 +208,7 @@ sub to_hash {
 		}
         }
         close($handler);
-        return ($inf, %result_hash);
+        return ($inf, %result_hash, $total);
 }
 
 sub current_time {
