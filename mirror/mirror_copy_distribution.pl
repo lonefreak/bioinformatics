@@ -28,8 +28,8 @@ print "Starting process (",&current_time,")\n";
 my $connect = &connect($database);
 print "Starting distribution extraction. (",&current_time,")\n";
 my ($min, %lengths) = &to_hash($copy_from);
-my @seq_array = &copy_distribution(\%lengths, $table, $min);
-&print_array_to_file(\@seq_array, $result);
+my %seq_hash = &copy_distribution(\%lengths, $table, $min);
+&print_hash_to_file(\%seq_hash, $result);
 print "Done distribution copy. (",&current_time,")\n";
 exit;
 
@@ -40,13 +40,13 @@ sub print_array {
 	}	
 }
 
-sub print_array_to_file {
+sub print_hash_to_file {
 	print "Writting output file. (",&current_time,")\n";
-	my (@array) = @{$_[0]};
+	my (%hash) = %{$_[0]};
 	my $output = $_[1];
         open(my $result, ">>$output") || die "cannot open label file $output\n";
-	for my $seq (@array) {
-	    	print $result ">modified sequence ",&current_time,"\n",$seq,"\n";
+	for my $id (keys(%hash)) {
+	    	print $result ">modified sequence $id","\n",$hash{$id},"\n";
 	}
         close($result);
 	print "Finished writting output file. (",&current_time,")\n";
@@ -72,8 +72,7 @@ sub is_defined {
 	my $min = $_[2];
 	if(defined($hash{$len})) { return 1; }
 	my $inf = int($len - ( 0.2 * $len));
-	my $sup = int($len + ( 0.2 * $len));
-	for(my $i = $inf; $i <= $sup; $i++) {
+	for(my $i = $inf; $i <= $len; $i++) {
 		if(defined($hash{$i})) { return 1; }
 	}
 	for(my $i = 0; $i < 10; $i++) {
