@@ -235,7 +235,7 @@ sub connect {
 	my $host = "localhost";
 	my $database = $_[0];
 	my $user = "root";
-	my $pw = "";
+	my $pw = "root";
 	my $connect = DBI->connect("DBI:mysql:database=$database;host=$host",$user, $pw, {RaiseError => 1});
 	return $connect;
 }
