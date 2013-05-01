@@ -82,14 +82,14 @@ sub is_defined {
 	my $len = $_[1];
 	my $min = $_[2];
 	if(defined($hash{$len})) { return $len; }
-	my $inf = int($len - ( 0.2 * $len));
+	my $inf = int($len - ( 0.1 * $len));
 	for(my $i = $inf; $i <= $len; $i++) {
 		if(defined($hash{$i})) { return $i; }
 	}
-	for(my $i = 0; $i < 10; $i++) {
-		my $n = int(rand($len-$min)) + $min;
-		if(defined($hash{$n})) { return $n; }
-	}
+#	for(my $i = 0; $i < 10; $i++) {
+#		my $n = int(rand($len-$min)) + $min;
+#		if(defined($hash{$n})) { return $n; }
+#	}
 	return 0;
 }
 
