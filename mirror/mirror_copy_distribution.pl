@@ -25,13 +25,21 @@ my $database = pop;
 my $result = pop;
 my $copy_from = pop;
 print "Starting process (",&current_time,")\n";
+&log("Starting process (".&current_time.")\n");
 my $connect = &connect($database);
-print "Starting distribution extraction. (",&current_time,")\n";
+&log("Starting distribution extraction. (".&current_time.")\n");
 my ($min, $total, %lengths) = &to_hash($copy_from);
 my %seq_hash = &copy_distribution(\%lengths, $table, $min, $total);
 &print_hash_to_file(\%seq_hash, $result);
 print "Done distribution copy. (",&current_time,")\n";
+&log("Done distribution copy. (".&current_time.")\n");
 exit;
+
+sub log {
+	open(LOG, ">>/tmp/mirror.log") || die "cannot open label file /tmp/mirror.log\n";
+	print LOG $_[0];
+	close(LOG);
+}
 
 sub print_array {
 	my (@array) = @{$_[0]};
@@ -42,6 +50,7 @@ sub print_array {
 
 sub print_hash_to_file {
 	print "Writting output file. (",&current_time,")\n";
+	&log("Writting output file. (".&current_time.")\n");
 	my (%hash) = %{$_[0]};
 	my $output = $_[1];
         open(my $result, ">>$output") || die "cannot open label file $output\n";
@@ -50,6 +59,7 @@ sub print_hash_to_file {
 	}
         close($result);
 	print "Finished writting output file. (",&current_time,")\n";
+	&log("Finished writting output file. (".&current_time.")\n");
 }
 
 sub print_hash {
@@ -62,7 +72,7 @@ sub print_hash {
 sub write_output {
 	my ($seq, $output) = @_;
 	open(my $result, ">>$output") || die "cannot open label file $output\n";
-    print $result ">modified sequence ",&current_time,"\n",$seq,"\n";
+	print $result ">modified sequence ",&current_time,"\n",$seq,"\n";
 	close($result);
 }
 
@@ -92,8 +102,9 @@ sub copy_distribution {
 
 	my $parallel = 0;
 
-	print "Number of sequences in original distribution: ", $total, " (",&current_time,")\n";
+	&log("Number of sequences in original distribution: ".$total." (".&current_time.")\n");
 	print "Starting copy proccess. (",&current_time,")\n";
+	&log("Starting copy proccess. (".&current_time.")\n");
 
 	do {
 		%selected_rows = &get_random_elements_bigger_than($table, $min);
@@ -139,9 +150,10 @@ sub copy_distribution {
 				if($found>=$total) { last; }
 			}
 		}
-		print "Found so far: ",scalar(keys(%copied_distribution))," of $total\n";
+		&log("Found so far: ".scalar(keys(%copied_distribution))." of $total\n");
 	} while (scalar(keys(%copied_distribution)) < $total);
 	print "Copy proccess finished. (",&current_time,")\n";
+	&log("Copy proccess finished. (".&current_time.")\n");
 	return %copied_distribution;
 }
 
@@ -168,11 +180,11 @@ sub get_random_elements_bigger_than {
         		        AND RAND('.$microseconds.') < @lim / @cnt
         		) i;';
 
-	print "Querying... (",&current_time,")\n";
-	print "\t",$query, "\n";
+	&log("Querying... (".&current_time.")\n");
+	#print "\t",$query, "\n";
 	my $q = $connect->prepare($query);
 	my $results = $connect->selectall_hashref($query, 'seq_id');
-	print "Query done... ".scalar(keys %$results)." found. (",&current_time,")\n";
+	&log("Query done... ".scalar(keys %$results)." found. (".&current_time.")\n");
 
 	foreach my $id (keys %$results) {
 		$seq_hash{$results->{$id}->{seq_id}} = $results->{$id}->{seq};
