@@ -30,7 +30,7 @@ my $connect = &connect($database);
 &log("Starting distribution extraction. (".&current_time.")\n");
 my ($min, $total, %lengths) = &to_hash($copy_from);
 my %seq_hash = &copy_distribution(\%lengths, $table, $min, $total);
-&print_hash_to_file(\%seq_hash, $result);
+#&print_hash_to_file(\%seq_hash, $result);
 print "Done distribution copy. (",&current_time,")\n";
 &log("Done distribution copy. (".&current_time.")\n");
 exit;
@@ -154,6 +154,7 @@ sub copy_distribution {
 	} while (scalar(keys(%copied_distribution)) < $total);
 	print "Copy proccess finished. (",&current_time,")\n";
 	&log("Copy proccess finished. (".&current_time.")\n");
+	&print_hash_to_file(\%copied_distribution, $result);
 	return %copied_distribution;
 }
 
