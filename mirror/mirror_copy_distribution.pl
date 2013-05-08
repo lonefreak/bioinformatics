@@ -135,7 +135,7 @@ sub copy_distribution {
 			my $found = scalar(keys(%copied_distribution));
 			foreach my $row (keys(%selected_rows)) {
 				
-				unless(defined($seq_ids{$row})) {
+#				unless(defined($seq_ids{$row})) {
 					my $len = length($selected_rows{$row});
 					my $cut = 0;
 					if(($cut = &is_defined(\%lengths, $len)) > 0) {
@@ -145,9 +145,9 @@ sub copy_distribution {
 						}
 						$copied_distribution{$row} = $temp_seqs{$row} = substr($selected_rows{$row},0,$cut);
 						$found++;
-						$seq_ids{$row} = 1;
+#						$seq_ids{$row} = 1;
 					}
-				}
+#				}
 				if($found>=$total) { last; }
 			}
 		}
