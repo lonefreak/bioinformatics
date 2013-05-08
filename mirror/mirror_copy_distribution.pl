@@ -82,7 +82,7 @@ sub is_defined {
 	my $len = $_[1];
 	my $min = $_[2];
 	if(defined($hash{$len})) { return $len; }
-	my $inf = int($len - ( 0.1 * $len));
+	my $inf = int($len - ( 0.25 * $len));
 	for(my $i = $inf; $i <= $len; $i++) {
 		if(defined($hash{$i})) { return $i; }
 	}
@@ -98,7 +98,7 @@ sub copy_distribution {
 	my $table = $_[1], my $initial_length = scalar(keys(%lengths));
 	my $min = $_[2];
 	my $total = $_[3];
-	my %copied_distribution, my %selected_rows, my %seq_ids;
+	my %copied_distribution, my %selected_rows, my %seq_ids, my %temp_seqs;
 
 	my $parallel = 0;
 
@@ -122,6 +122,7 @@ sub copy_distribution {
 	                                if(defined($lengths{length($selected_rows{$row})})) {
 	                                        $lengths{length($selected_rows{$row})}--;
 	                                        $copied_distribution{$row} = $selected_rows{$row};
+						$temp_seqs{$row} = $selected_rows{$row};
 	                                        $seq_ids{$row} = 1;
 	                                }
 	                        }
@@ -142,7 +143,7 @@ sub copy_distribution {
 						unless($lengths{$cut}) {
 							undef($lengths{$cut});
 						}
-						$copied_distribution{$row} = substr($selected_rows{$row},0,$cut);
+						$copied_distribution{$row} = $temp_seqs{$row} = substr($selected_rows{$row},0,$cut);
 						$found++;
 						$seq_ids{$row} = 1;
 					}
@@ -151,10 +152,11 @@ sub copy_distribution {
 			}
 		}
 		&log("Found so far: ".scalar(keys(%copied_distribution))." of $total\n");
+		&print_hash_to_file(\%temp_seqs, $result);
+		undef(%temp_seqs);
 	} while (scalar(keys(%copied_distribution)) < $total);
 	print "Copy proccess finished. (",&current_time,")\n";
 	&log("Copy proccess finished. (".&current_time.")\n");
-	&print_hash_to_file(\%copied_distribution, $result);
 	return %copied_distribution;
 }
 
