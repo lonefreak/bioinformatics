@@ -7,11 +7,12 @@
 #
 #  AUTHOR: Fabricio Leotti
 #
-#  LAST MODIFIED: 24.Sep.2012
+#  LAST MODIFIED: 20.Mai.2013
 #  
 
 use MongoDB;
 use MongoDB::OID;
+use Scalar::Util;
 
 my ($USAGE) = "\nUSAGE: $0 <db> <collection> <hit table filename> <origin tag>\n".
               "\t\t<db> MongoDB database name\n".
@@ -29,37 +30,46 @@ my $ORIGIN = $ARGV[3];
 open(TABLE, "<$TABLEFILE") || die "Could not open file $TABLEFILE.\n";
 
 my $conn = MongoDB::Connection->new;
-my $db = $conn->$DATABASE;
-my $chom = $db->$COLLECTION;
-
+my $db = $conn->get_database($DATABASE);
+my $chom = $db->get_collection($COLLECTION);
+my $caption = 1;
+my @captions;
 my @rline;
 while(<TABLE>){
         chomp;
-        @rline = split("\t");
-	my %result, my @hits;
 
-	unless($rline[0] eq "QUERY") {
-		push @hits, {"hit" => "$rline[2]",
-        	                "best_hit" => 1,
-        	                "evalue" => $rline[3] + 0.0,
-        	                "id" => $rline[4] + 0.0,
-        	                "start" => $rline[5] + 0.0,
-        	                "end" => $rline[6] + 0.0
-        	                };
-
-		if($rline[7]) {
-			        push @hits, {"hit" => "$rline[7]",
-        	                	"best_hit" => 0,
-        	                	"evalue" => $rline[8] + 0.0,
-        	                	"id" => $rline[9] + 0.0,
-        	                	"start" => $rline[10] + 0.0,
-        	                	"end" => $rline[11] + 0.0
-        	                };
-		}
-
-		$chom->insert({"query" => "$rline[0]",
-                                "total_hits" => $rline[1] + 0.0,
-				"origin" => $ORIGIN,
-                                "hits" => [@hits]});
+	if($caption) {
+#		print $_, "\n";
+		@captions = split("\t");
+		$caption = 0;
+		next;
 	}
+
+	
+#	print $_, "\n";
+
+        @rline = split("\t");
+
+
+	my %result, my @hits, my %hit;
+	my $col = @rline;
+	for (my $i = 0; $i < $col; $i++) {
+		my $fkey = &formatted_key($captions[$i]);
+		if($fkey eq "2nd_hit") {
+			last;
+		}
+#		print $fkey, " => ", $rline[$i], "\n";
+		$hit{$fkey} = (Scalar::Util::looks_like_number($rline[$i]) ? $rline[$i]+0.0 : "$rline[$i]");
+	}
+	$hit{"origin"} = $ORIGIN;
+#	print %hit, "\n";
+	$chom->insert(\%hit);
+	undef(%hit);
+}
+
+sub formatted_key {
+	my $key = $_[0];
+	$key =~ s/[-#]//g;
+	$key = lc($key);
+	return $key;
 }
