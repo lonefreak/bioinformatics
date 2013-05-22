@@ -1,0 +1,5 @@
+#! /bin/sh
+
+head $1
+echo ".\n.\n."
+tail $1
