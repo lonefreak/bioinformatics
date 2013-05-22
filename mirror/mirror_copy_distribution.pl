@@ -143,7 +143,8 @@ sub copy_distribution {
 						unless($lengths{$cut}) {
 							undef($lengths{$cut});
 						}
-						$copied_distribution{$row} = $temp_seqs{$row} = substr($selected_rows{$row},0,$cut);
+						my $idx = rand($row);
+						$copied_distribution{$idx} = $temp_seqs{$idx} = substr($selected_rows{$row},0,$cut);
 						$found++;
 #						$seq_ids{$row} = 1;
 					}
