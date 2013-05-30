@@ -34,6 +34,7 @@ my $KEY = $ARGV[5];
 my $OUTPUTFILE = $ARGV[6];
 
 open(OUT, ">$OUTPUTFILE.csv") || die "Could not open file $OUTPUTFILE.csv.\n";
+open(TAB, ">$OUTPUTFILE.tab") || die "Could not open file $OUTPUTFILE.tab.\n";
 open(LOG, ">hits_distribution.log") || die "Could not create log file.\n";
 
 print LOG "###########################################\n";
@@ -41,8 +42,8 @@ print LOG "Starting process (",&current_time,")\n";
 print LOG "###########################################\n";
 
 my $conn = MongoDB::Connection->new;
-my $db = $conn->$DATABASE;
-my $chom = $db->$COLLECTION;
+my $db = $conn->get_database($DATABASE);
+my $chom = $db->get_collection($COLLECTION);
 
 my $ltoperator = '$lt';
 if($EVALUE == 0) {
@@ -75,7 +76,8 @@ for my $hit ( @{ $hits->{values} } ) {
 		"id" => {'$gte' => $IDENTITY}
 		});
 	print LOG "$hitcount\n";
-	print OUT "$hitcount,$hit\n"; 
+	print OUT "$hitcount,$hit\n";
+	print TAB "$hitcount\t$hit\n" 
 }
 print LOG "Count process done\n";
 print LOG "###########################################\n";
