@@ -7,10 +7,17 @@
 #
 #  AUTHOR: Fabricio Leotti
 #
-#  LAST MODIFIED: 24.Oct.2012
+#  LAST MODIFIED: 30.Mai.2013
 #  
 use strict;
 use warnings;
+
+my ($USAGE) = "\nUSAGE: $0 <output fasta file>\n";
+
+if (!defined($ARGV[0])) {
+        die $USAGE;
+}
+
 my $file = $ARGV[0];
 my $nbr_sequences = my $seq_length = my $average_length = my $total_seq_length = my $max_length = my $min_length = 0;
 open(FILE, "<$file") || die "cannot open $file\n";
