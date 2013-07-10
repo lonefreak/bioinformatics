@@ -46,6 +46,7 @@ $seq_length = 0;
 close(FILE);
 $average_length = $total_seq_length / $nbr_sequences;
 print "Total number of sequences: $nbr_sequences\n";
+print "Total length: $total_seq_length\n";
 print "Average:\t$average_length\n";
 print "Max:\t$max_length\n";
 print "Min:\t$min_length\n";

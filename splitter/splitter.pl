@@ -1,6 +1,28 @@
+#                                                        
+#  PROGRAM: splitter.pl                                     21.May.2012     
+#
+#  DESCRIPTION: Splits a single fasta file from paired-end library into reverse, forward and unpaired fasta files 
+#
+#  AUTHOR: Fabricio Leotti
+#
+#  LAST MODIFIED: 10.Jul.2013
+# 
+
+#!usr/bin/perl -w
 use strict;
 use warnings;
+
+my ($USAGE) = 	"\nUSAGE: $0 <file.fasta>\n".
+		"OUTPUT: \n\treverse.fasta\n\tforward.fasta\n\tunpaired.fasta\n".
+		"DESCRIPTION: Splits a single fasta file from paired-end library into reverse, forward and unpaired fasta files\n\n";
+
 my $file = $ARGV[0];
+
+if (!($file)) {
+        print $USAGE;
+        exit;
+}
+
 my $newline;
 
 my $out1 = "reverse.fasta";
